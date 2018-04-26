@@ -204,6 +204,8 @@ allTests =
                           , ""
                           ]
       in (barOptics <> recTypeOptics) `shouldBe` txt
+
+
     it "tests generation of newtypes for record data type" $
       let recType = bridgeSumType (buildBridge defaultBridge) (mkSumType (Proxy :: Proxy (SingleRecord A B)))
           recTypeText = sumTypeToText recType
@@ -292,3 +294,31 @@ allTests =
       let recType = bridgeSumType (buildBridge defaultBridge) (mkSumType (Proxy :: Proxy TwoRecords))
           recTypeOptics = recordOptics recType
       in recTypeOptics `shouldBe` "" -- No record optics for multi-constructors
+
+    it "tests generation of type aliases" $
+      let recType = bridgeSumType (buildBridge defaultBridge)
+            (mkRecordType (Proxy :: Proxy TheAlias) "TheAlias" recordFieldsPrimitive)
+          recTypeText = sumTypeToText recType
+          txt = T.stripEnd $
+            T.unlines [ "type TheAlias = {"
+                      , "      _name :: String"
+                      , "    , _age :: Int"
+                      , "    }"
+                      , "--------------------------------------------------------------------------------"
+                      , "--------------------------------------------------------------------------------"
+                      ]
+      in recTypeText `shouldBe` txt
+
+    it "tests generation of type aliases with non prim types" $
+      let recType = bridgeSumType (buildBridge defaultBridge)
+            (mkRecordType (Proxy :: Proxy TheAlias2) "TheAlias2" recordFields)
+          recTypeText = sumTypeToText recType
+          txt = T.stripEnd $
+            T.unlines [ "type TheAlias2 = {"
+                      , "      _name :: Foo"
+                      , "    , _age :: Int"
+                      , "    }"
+                      , "--------------------------------------------------------------------------------"
+                      , "--------------------------------------------------------------------------------"
+                      ]
+      in recTypeText `shouldBe` txt

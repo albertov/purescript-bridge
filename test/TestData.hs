@@ -86,3 +86,20 @@ cs :: [DataConstructor 'PureScript]
 psB :: SumType 'PureScript
 psB@(SumType t cs) = bridgeSumType (buildBridge defaultBridge) b
 
+
+type TheAlias = Foo
+
+recordFieldsPrimitive :: [RecordEntry 'Haskell]
+recordFieldsPrimitive =
+  [ RecordEntry "_name" (mkTypeInfo (Proxy :: Proxy String))
+  , RecordEntry "_age" (mkTypeInfo (Proxy :: Proxy Int))
+  ]
+
+type TheAlias2 = Test
+
+recordFields :: [RecordEntry 'Haskell]
+recordFields =
+  [ RecordEntry "_name" (mkTypeInfo (Proxy :: Proxy Foo))
+  , RecordEntry "_age" (mkTypeInfo (Proxy :: Proxy Int))
+  ]
+

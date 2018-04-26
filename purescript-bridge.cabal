@@ -81,6 +81,7 @@ library
                      , generic-deriving
 
   ghc-options:       -Wall
+                     -Werror=incomplete-patterns
 
   -- Directories containing source files.
   hs-source-dirs:      src

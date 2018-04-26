@@ -9,9 +9,11 @@
 
 
 
-module Language.PureScript.Bridge.SumType (
+module Language.PureScript.Bridge.SumType
+  (
   SumType (..)
 , mkSumType
+, mkRecordType
 , DataConstructor (..)
 , RecordEntry (..)
 , getUsedTypes
@@ -24,27 +26,31 @@ module Language.PureScript.Bridge.SumType (
 , recValue
 ) where
 
-import           Control.Lens      hiding (from, to)
+import           Control.Lens                        hiding (from, to)
 import           Data.Proxy
-import           Data.Set          (Set)
-import qualified Data.Set          as Set
-import           Data.Text         (Text)
-import qualified Data.Text         as T
+import           Data.Set                            (Set)
+import qualified Data.Set                            as Set
+import           Data.Text                           (Text)
+import qualified Data.Text                           as T
 import           Data.Typeable
 import           Generics.Deriving
 
 import           Language.PureScript.Bridge.TypeInfo
 
 -- | Generic representation of your Haskell types.
-data SumType (lang :: Language) = SumType (TypeInfo lang) [DataConstructor lang] deriving (Show, Eq)
+data SumType (lang :: Language) =
+  SumType (TypeInfo lang) [DataConstructor lang]
+    | TypeAlias (TypeInfo lang) [RecordEntry lang] deriving (Show, Eq)
 
 -- | TypInfo lens for 'SumType'.
 sumTypeInfo :: Functor f => (TypeInfo lang -> f (TypeInfo lang) ) -> SumType lang -> f (SumType lang)
-sumTypeInfo inj (SumType info constrs) = flip SumType constrs <$> inj info
+sumTypeInfo inj (SumType info constrs)  = flip SumType constrs <$> inj info
+sumTypeInfo inj (TypeAlias info fields) = flip TypeAlias fields <$> inj info
 
 -- | DataConstructor lens for 'SumType'.
 sumTypeConstructors :: Functor f => ([DataConstructor lang] -> f [DataConstructor lang]) -> SumType lang -> f (SumType lang)
 sumTypeConstructors inj (SumType info constrs) = SumType info <$> inj constrs
+sumTypeConstructors inj (TypeAlias info fields) = const (TypeAlias info fields) <$> inj []
 
 -- | Create a representation of your sum (and product) types,
 --   for doing type translations and writing it out to your PureScript modules.
@@ -54,6 +60,11 @@ mkSumType :: forall t. (Generic t, Typeable t, GDataConstructor (Rep t))
 mkSumType p = SumType  (mkTypeInfo p) constructors
   where
     constructors = gToConstructors (from (undefined :: t))
+
+mkRecordType :: Typeable t => Proxy t -> Text -> [RecordEntry 'Haskell] -> SumType 'Haskell
+mkRecordType p alias fields = TypeAlias (typeInfo { _typeName = alias }) fields
+  where
+    typeInfo = mkTypeInfo p
 
 data DataConstructor (lang :: Language) =
   DataConstructor { _sigConstructor :: !Text -- ^ e.g. `Left`/`Right` for `Either`
@@ -109,13 +120,17 @@ instance (Selector a, Typeable t) => GRecordEntry (S1 a (K1 R t)) where
 --   This includes all types found at the right hand side of a sum type
 --   definition, not the type parameters of the sum type itself
 getUsedTypes :: SumType lang -> Set (TypeInfo lang)
-getUsedTypes (SumType _ cs) = foldr constructorToTypes Set.empty cs
+getUsedTypes (SumType _ cs)   = foldr constructorToTypes Set.empty cs
+getUsedTypes (TypeAlias _ rs) = recordToTypes rs Set.empty
 
 constructorToTypes :: DataConstructor lang -> Set (TypeInfo lang) -> Set (TypeInfo lang)
 constructorToTypes (DataConstructor _ (Left myTs)) ts =
   Set.fromList (concatMap flattenTypeInfo myTs) `Set.union` ts
-constructorToTypes (DataConstructor _ (Right rs))  ts =
-  Set.fromList (concatMap (flattenTypeInfo . _recValue) rs) `Set.union` ts
+constructorToTypes (DataConstructor _ (Right rs))  ts = recordToTypes rs ts
+
+
+recordToTypes :: [RecordEntry lang] -> Set (TypeInfo lang) -> Set (TypeInfo lang)
+recordToTypes rs ts = Set.fromList (concatMap (flattenTypeInfo . _recValue) rs) `Set.union` ts
 
 -- Lenses:
 makeLenses ''DataConstructor

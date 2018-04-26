@@ -136,6 +136,8 @@ sumTypeToTypeDecls st@(SumType t cs) = T.unlines $
     dataOrNewtype = if isNewtype cs then "newtype" else "data"
     isSingletonList [_] = True
     isSingletonList _   = False
+sumTypeToTypeDecls (TypeAlias t rs) =
+  "type " <> typeInfoToText True t <> " =" <> recordToText 4 rs
 
 sumTypeToOptics :: SumType 'PureScript -> Text
 sumTypeToOptics st = constructorOptics st <> recordOptics st
@@ -165,9 +167,11 @@ recordOptics _ = ""
 constructorToText :: Int -> DataConstructor 'PureScript -> Text
 constructorToText _ (DataConstructor n (Left []))  = n
 constructorToText _ (DataConstructor n (Left ts))  = n <> " " <> T.intercalate " " (map (typeInfoToText False) ts)
-constructorToText indentation (DataConstructor n (Right rs)) =
-       n <> " {\n"
-    <> spaces (indentation + 2) <> T.intercalate intercalation (map recordEntryToText rs) <> "\n"
+constructorToText indentation (DataConstructor n (Right rs)) = n <> recordToText indentation rs
+
+recordToText :: Int -> [RecordEntry 'PureScript] -> Text
+recordToText indentation rs =
+  " {\n" <> spaces (indentation + 2) <> T.intercalate intercalation (map recordEntryToText rs) <> "\n"
     <> spaces indentation <> "}"
   where
     intercalation = "\n" <> spaces indentation <> "," <> " "
@@ -274,7 +278,11 @@ sumTypesToModules :: Modules -> [SumType 'PureScript] -> Modules
 sumTypesToModules = foldr sumTypeToModule
 
 sumTypeToModule :: SumType 'PureScript -> Modules -> Modules
-sumTypeToModule st@(SumType t _) = Map.alter (Just . updateModule) (_typeModule t)
+sumTypeToModule st@(SumType t _)   = toModule t st
+sumTypeToModule st@(TypeAlias t _) = toModule t st
+
+toModule :: TypeInfo 'PureScript -> SumType 'PureScript -> Modules -> Modules
+toModule t st = Map.alter (Just . updateModule) (_typeModule t)
   where
     updateModule Nothing = PSModule {
           psModuleName = _typeModule t
